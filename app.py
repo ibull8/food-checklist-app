@@ -214,10 +214,15 @@ if spreadsheet:
 
                     uploaded_file = st.file_uploader("📸 העלה תמונה אישית", type=['png', 'jpg', 'jpeg'], key=f"uploader_{unique_key}")
                     if uploaded_file is not None:
-                        # המרת תמונה ל-Base64
+                        # --- שדרוג: כיווץ תמונה לפני שמירה ---
                         img = Image.open(uploaded_file)
+                        # קביעת גודל מקסימלי תוך שמירה על יחס רוחב-גובה
+                        img.thumbnail((600, 600)) 
+                        
                         buffered = io.BytesIO()
-                        img.save(buffered, format=img.format or "PNG")
+                        # שמירת התמונה המכווצת
+                        img_format = img.format if img.format in ['JPEG', 'PNG'] else 'PNG'
+                        img.save(buffered, format=img_format)
                         img_b64 = base64.b64encode(buffered.getvalue()).decode()
                         
                         st.session_state.food_df.loc[original_index, 'תמונה_אישית_b64'] = img_b64
@@ -229,7 +234,6 @@ if spreadsheet:
                     st.subheader(row['שם המאכל'])
                     st.caption(f"המלצה: {row.get('המלצות', 'אין')}")
                     
-                    # --- תיקון לבעיית ה-NameError ---
                     # המרה בטוחה של 'TRUE'/'FALSE' לערך בוליאני
                     current_tasted_bool = str(row['טעמנו']).strip().upper() == 'TRUE'
                     tasted = st.checkbox("טעמנו ✔", value=current_tasted_bool, key=f"tasted_{unique_key}")

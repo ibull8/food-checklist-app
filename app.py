@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+from io import BytesIO
 
 # הגדרות ראשוניות של העמוד
 st.set_page_config(
@@ -10,20 +11,30 @@ st.set_page_config(
 )
 
 # --- יישור לימין (RTL) ---
-# הזרקת CSS מותאם אישית ליישור כל האפליקציה לימין
 st.markdown("""
 <style>
     html, body, [class*="st-"], .main {
         direction: rtl;
         text-align: right;
     }
+    /* התאמות קטנות למראה הצ'קבוקס והסליידרים ב-RTL */
+    div[data-testid="stCheckbox"] {
+        margin-left: 0;
+        margin-right: -1rem;
+    }
+    div[data-testid="stSlider"] > label {
+        text-align: right;
+    }
 </style>
 """, unsafe_allow_html=True)
 
+# --- ניהול נתונים ושמירת מצב (Session State) ---
 
-# --- הגדרת הנתונים ---
-# יצירת DataFrame עם כל המידע על המאכלים
-def load_data():
+def initialize_data():
+    """
+    יוצר את רשימת המאכלים הראשונית ומכין אותה לשמירה במצב הסשן.
+    הפונקציה רצה פעם אחת בלבד בתחילת השימוש באפליקציה.
+    """
     data = {
         'עיר': ['בודפשט'] * 7 + ['וינה'] * 7,
         'שם המאכל': [
@@ -34,7 +45,7 @@ def load_data():
             'קייזרשמארן (Kaiserschmarrn)', 'טפלשפיץ (Tafelspitz)', 'נקניקיות (Würstel)', 
             'קנודל (Knödel)'
         ],
-        'תמונה': [
+        'תמונה_מקרא': [ # שיניתי את שם העמודה כדי למנוע בלבול
             'https://images.pexels.com/photos/10774535/pexels-photo-10774535.jpeg?auto=compress&cs=tinysrgb&w=800',
             'https://images.pexels.com/photos/18943026/pexels-photo-18943026/free-photo-of-a-traditional-hungarian-street-food-dish-called-langos.jpeg?auto=compress&cs=tinysrgb&w=800',
             'https://images.pexels.com/photos/887853/pexels-photo-887853.jpeg?auto=compress&cs=tinysrgb&w=800',
@@ -59,76 +70,96 @@ def load_data():
             'Gasthaus Pöschl'
         ]
     }
-    return pd.DataFrame(data)
+    df = pd.DataFrame(data)
+    # הוספת עמודות לשמירת המצב של כל רכיב אינטראקטיבי
+    df['טעמנו'] = False
+    df['דירוג אילן'] = 3
+    df['דירוג מירה'] = 3
+    df['איפה אכלנו'] = ""
+    df['הערות'] = ""
+    df['תמונה שלנו'] = ""
+    df['תמונה שהועלתה'] = [None] * len(df) # עמודה לשמירת התמונות שהמשתמש מעלה
+    return df
 
-df = load_data()
+# טעינת הנתונים לתוך ה-session state אם הם לא קיימים שם
+if 'food_df' not in st.session_state:
+    st.session_state.food_df = initialize_data()
 
 # --- ממשק המשתמש ---
 
 st.title("🌮 הטיול הקולינרי שלנו")
 st.markdown("### צ'קליסט טעימות אינטראקטיבי לבודפשט ולווינה")
 
-# יצירת לשוניות (טאבים) לכל עיר
 tab_budapest, tab_vienna = st.tabs(["בודפשט 🇭🇺", "וינה 🇦🇹"])
 
-def create_food_checklist(city_df, city_name):
+def create_food_checklist(city_name):
     """
-    פונקציה ליצירת התצוגה של כל המאכלים בעיר מסוימת
+    פונקציה ליצירת התצוגה של כל המאכלים והרכיבים האינטראקטיביים.
     """
-    # כותרות הטבלה
-    col_header_1, col_header_2, col_header_3, col_header_4, col_header_5 = st.columns([2, 1, 1.5, 1.5, 2])
-    with col_header_1:
-        st.markdown("**המאכל**")
-    with col_header_2:
-        st.markdown("**טעמנו?**")
-    with col_header_3:
-        st.markdown("**הדירוג של אילן**")
-    with col_header_4:
-        st.markdown("**הדירוג של מירה**")
-    with col_header_5:
-        st.markdown("**פרטים נוספים**")
-    st.markdown("---")
-
-
-    # לולאה על כל המאכלים בעיר
+    # סינון ה-DataFrame לפי העיר הנבחרת
+    city_df = st.session_state.food_df[st.session_state.food_df['עיר'] == city_name]
+    
     for index, row in city_df.iterrows():
-        # יצירת מזהה ייחודי לכל מאכל כדי לשמור את המידע שלו
         unique_key = f"{city_name}_{index}"
         
-        col1, col2, col3, col4, col5 = st.columns([2, 1, 1.5, 1.5, 2])
+        col1, col2 = st.columns([1, 2])
         
-        with col1:
-            st.image(row['תמונה'], width=150)
+        with col1: # עמודת התמונה
+            if row['תמונה שהועלתה']:
+                st.image(row['תמונה שהועלתה'], use_column_width=True)
+            else:
+                st.image(row['תמונה_מקרא'], use_column_width=True)
+            
+            uploaded_file = st.file_uploader("החלף תמונה", type=['png', 'jpg', 'jpeg'], key=f"uploader_{unique_key}")
+            if uploaded_file:
+                # קריאת התמונה שהועלתה ושמירתה במצב הסשן
+                st.session_state.food_df.at[index, 'תמונה שהועלתה'] = uploaded_file.getvalue()
+                st.rerun() # רענון הדף כדי להציג את התמונה החדשה
+
+        with col2: # עמודת המידע והאינטראקציה
             st.subheader(row['שם המאכל'])
             st.caption(f"המלצה: {row['המלצות']}")
-
-        with col2:
-            # צ'קבוקס
-            tasted = st.checkbox("✔", key=f"tasted_{unique_key}")
-
-        with col3:
-            # דירוג כוכבים (סליידר)
-            ilan_rating = st.slider("דרג:", 1, 5, 3, key=f"ilan_rating_{unique_key}", format="%d כוכבים")
-
-        with col4:
-            mira_rating = st.slider("דרגי:", 1, 5, 3, key=f"mira_rating_{unique_key}", format="%d כוכבים")
-        
-        with col5:
-            # שדות טקסט להערות
-            where_ate = st.text_input("איפה אכלנו?", key=f"where_{unique_key}")
-            notes = st.text_area("הערות וטיפים", key=f"notes_{unique_key}")
-            our_photo = st.text_input("קישור לתמונה שלנו", key=f"photo_{unique_key}")
+            
+            st.session_state.food_df.at[index, 'טעמנו'] = st.checkbox("טעמנו ✔", value=row['טעמנו'], key=f"tasted_{unique_key}")
+            
+            st.session_state.food_df.at[index, 'דירוג אילן'] = st.slider("הדירוג של אילן:", 1, 5, value=row['דירוג אילן'], key=f"ilan_rating_{unique_key}", format="%d כוכבים")
+            st.session_state.food_df.at[index, 'דירוג מירה'] = st.slider("הדירוג של מירה:", 1, 5, value=row['דירוג מירה'], key=f"mira_rating_{unique_key}", format="%d כוכבים")
+            
+            st.session_state.food_df.at[index, 'איפה אכלנו'] = st.text_input("איפה אכלנו?", value=row['איפה אכלנו'], key=f"where_{unique_key}")
+            st.session_state.food_df.at[index, 'הערות'] = st.text_area("הערות וטיפים", value=row['הערות'], key=f"notes_{unique_key}")
+            st.session_state.food_df.at[index, 'תמונה שלנו'] = st.text_input("קישור לתמונה שלנו", value=row['תמונה שלנו'], key=f"photo_{unique_key}")
 
         st.markdown("---")
+        
+    # טופס להוספת מאכל חדש
+    with st.expander("הוסף מאכל חדש 🥐"):
+        with st.form(key=f"add_food_form_{city_name}", clear_on_submit=True):
+            new_name = st.text_input("שם המאכל")
+            new_recommendations = st.text_input("המלצות")
+            new_image = st.file_uploader("העלה תמונה למאכל החדש", type=['png', 'jpg', 'jpeg'])
+            
+            submitted = st.form_submit_button("הוסף לרשימה")
+            if submitted and new_name:
+                image_bytes = new_image.getvalue() if new_image else None
+                
+                new_row = pd.DataFrame([{
+                    'עיר': city_name.replace('בודפשט', 'בודפשט').replace('וינה', 'וינה'), # לוודא שהשם נכון
+                    'שם המאכל': new_name,
+                    'תמונה_מקרא': 'https://placehold.co/800x800/EEE/31343C?text=My+Photo', # תמונה זמנית
+                    'המלצות': new_recommendations,
+                    'טעמנו': False, 'דירוג אילן': 3, 'דירוג מירה': 3, 'איפה אכלנו': "", 'הערות': "", 'תמונה שלנו': "",
+                    'תמונה שהועלתה': image_bytes
+                }])
+                
+                st.session_state.food_df = pd.concat([st.session_state.food_df, new_row], ignore_index=True)
+                st.success(f"'{new_name}' נוסף בהצלחה לרשימה!")
+                st.rerun()
 
-
-# יצירת התוכן עבור הלשונית של בודפשט
 with tab_budapest:
     st.header("מאכלי חובה בבודפשט")
-    create_food_checklist(df[df['עיר'] == 'בודפשט'], 'budapest')
+    create_food_checklist('בודפשט')
 
-# יצירת התוכן עבור הלשונית של וינה
 with tab_vienna:
     st.header("מאכלי חובה בוינה")
-    create_food_checklist(df[df['עיר'] == 'וינה'], 'vienna')
+    create_food_checklist('וינה')
 

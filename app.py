@@ -38,14 +38,14 @@ def initialize_data():
     data = {
         'עיר': ['בודפשט'] * 7 + ['וינה'] * 7,
         'שם המאכל': [
-            'גולאש (Gulyás)', 'לאנגוש (Lángos)', 'קיורטוש (Kürtőskalács)', 
-            'עוגת דובוש (Dobos Torta)', 'פפריקש עוף (Csirkepaprikás)', 'כרוב ממולא (Töltött Káposzta)', 
+            'גולאש (Gulyás)', 'לאנגוש (Lángos)', 'קיורטוש (Kürtőskalács)',
+            'עוגת דובוש (Dobos Torta)', 'פפריקש עוף (Csirkepaprikás)', 'כרוב ממולא (Töltött Káposzta)',
             'פלאצ\'ינטה (Palacsinta)',
             'שניצל וינאי (Wiener Schnitzel)', 'אפפלשטרודל (Apfelstrudel)', 'זאכרטורטה (Sachertorte)',
-            'קייזרשמארן (Kaiserschmarrn)', 'טפלשפיץ (Tafelspitz)', 'נקניקיות (Würstel)', 
+            'קייזרשמארן (Kaiserschmarrn)', 'טפלשפיץ (Tafelspitz)', 'נקניקיות (Würstel)',
             'קנודל (Knödel)'
         ],
-        'תמונה_מקרא': [ # שיניתי את שם העמודה כדי למנוע בלבול
+        'תמונה_מקרא': [
             'https://images.pexels.com/photos/10774535/pexels-photo-10774535.jpeg?auto=compress&cs=tinysrgb&w=800',
             'https://images.pexels.com/photos/18943026/pexels-photo-18943026/free-photo-of-a-traditional-hungarian-street-food-dish-called-langos.jpeg?auto=compress&cs=tinysrgb&w=800',
             'https://images.pexels.com/photos/887853/pexels-photo-887853.jpeg?auto=compress&cs=tinysrgb&w=800',
@@ -77,13 +77,27 @@ def initialize_data():
     df['דירוג מירה'] = 3
     df['איפה אכלנו'] = ""
     df['הערות'] = ""
-    df['תמונה שלנו (URL)'] = "" # עמודה ייעודית לקישור
-    df['תמונה שהועלתה'] = [None] * len(df) # עמודה לשמירת התמונות שהמשתמש מעלה
+    df['תמונה שלנו (URL)'] = ""
+    df['תמונה שהועלתה'] = [None] * len(df)
     return df
 
 # טעינת הנתונים לתוך ה-session state אם הם לא קיימים שם
 if 'food_df' not in st.session_state:
     st.session_state.food_df = initialize_data()
+
+# --- מנגנון תיקון אוטומטי למבנה נתונים ישן ---
+# בודק אם העמודות החדשות קיימות בטבלה, ואם לא - מוסיף אותן.
+required_columns = {
+    'תמונה שלנו (URL)': "",
+    'תמונה שהועלתה': None
+}
+for col, default_value in required_columns.items():
+    if col not in st.session_state.food_df.columns:
+        if default_value is None:
+            st.session_state.food_df[col] = [None] * len(st.session_state.food_df)
+        else:
+            st.session_state.food_df[col] = default_value
+
 
 # --- ממשק המשתמש ---
 
@@ -106,7 +120,7 @@ def create_food_checklist(city_name):
         
         with col1: # עמודת התמונה
             # לוגיקת בחירת התמונה להצגה: קישור > תמונה שהועלתה > תמונת ברירת מחדל
-            image_to_show = row['תמונה_מקרא'] # ברירת מחדל
+            image_to_show = row['תמונה_מקרא']
             if row['תמונה שהועלתה'] is not None:
                 image_to_show = row['תמונה שהועלתה']
             if row['תמונה שלנו (URL)']:
@@ -116,9 +130,7 @@ def create_food_checklist(city_name):
             
             uploaded_file = st.file_uploader("החלף תמונה מקובץ", type=['png', 'jpg', 'jpeg'], key=f"uploader_{unique_key}")
             if uploaded_file:
-                # קריאת התמונה שהועלתה ושמירתה במצב הסשן
                 st.session_state.food_df.at[index, 'תמונה שהועלתה'] = uploaded_file.getvalue()
-                # אם מעלים קובץ, נקה את הקישור כדי למנוע בלבול
                 st.session_state.food_df.at[index, 'תמונה שלנו (URL)'] = ""
                 st.rerun()
 
@@ -134,11 +146,9 @@ def create_food_checklist(city_name):
             st.session_state.food_df.at[index, 'איפה אכלנו'] = st.text_input("איפה אכלנו?", value=row['איפה אכלנו'], key=f"where_{unique_key}")
             st.session_state.food_df.at[index, 'הערות'] = st.text_area("הערות וטיפים", value=row['הערות'], key=f"notes_{unique_key}")
             
-            # שדה ייעודי להדבקת קישור לתמונה
             url_input = st.text_input("הדבק קישור לתמונה (URL)", value=row['תמונה שלנו (URL)'], key=f"photo_url_{unique_key}")
             if url_input != row['תמונה שלנו (URL)']:
                 st.session_state.food_df.at[index, 'תמונה שלנו (URL)'] = url_input
-                # אם מדביקים קישור, נקה את התמונה שהועלתה
                 st.session_state.food_df.at[index, 'תמונה שהועלתה'] = None
                 st.rerun()
 
@@ -159,7 +169,7 @@ def create_food_checklist(city_name):
                 new_row = pd.DataFrame([{
                     'עיר': city_name,
                     'שם המאכל': new_name,
-                    'תמונה_מקרא': 'https://placehold.co/800x800/EEE/31343C?text=My+Photo', # תמונה זמנית
+                    'תמונה_מקרא': 'https://placehold.co/800x800/EEE/31343C?text=My+Photo',
                     'המלצות': new_recommendations,
                     'טעמנו': False, 'דירוג אילן': 3, 'דירוג מירה': 3, 'איפה אכלנו': "", 'הערות': "", 
                     'תמונה שלנו (URL)': new_url,

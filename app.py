@@ -78,7 +78,6 @@ st.markdown("""
 
 # --- קבועים והגדרות ---
 SPREADSHEET_NAME = "צ'קליסט טיול קולינרי"
-AUTO_SAVE_DELAY_SECONDS = 5 # שמור אוטומטית 5 שניות לאחר השינוי האחרון
 
 # --- התחברות ל-Google Sheets ---
 @st.cache_resource
@@ -103,14 +102,19 @@ def get_spreadsheet(client):
 
 spreadsheet = get_spreadsheet(client)
 
-def ensure_columns(df):
+def ensure_columns_and_types(df):
     required_cols = {'תמונה_אישית_b64': ''}
     for col, default_value in required_cols.items():
         if col not in df.columns:
             df[col] = default_value
+            
+    # המרה חכמה של סוגי הנתונים אחרי טעינה
+    df['טעמנו'] = df['טעמנו'].astype(str).str.strip().str.upper() == 'TRUE'
+    df['דירוג אילן'] = pd.to_numeric(df['דירוג אילן'], errors='coerce').fillna(3).astype(int)
+    df['דירוג מירה'] = pd.to_numeric(df['דירוג מירה'], errors='coerce').fillna(3).astype(int)
     return df
 
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=30) # Cache data for 30 seconds
 def get_data_from_sheet(_spreadsheet):
     try:
         worksheet = _spreadsheet.worksheet("Data")
@@ -118,13 +122,8 @@ def get_data_from_sheet(_spreadsheet):
         if df.empty:
             df = initialize_local_data()
             save_data_to_sheet(_spreadsheet, df)
-        else:
-            # המרה חכמה של סוגי הנתונים אחרי טעינה
-            df['טעמנו'] = df['טעמנו'].astype(str).str.strip().str.upper() == 'TRUE'
-            df['דירוג אילן'] = pd.to_numeric(df['דירוג אילן'], errors='coerce').fillna(3).astype(int)
-            df['דירוג מירה'] = pd.to_numeric(df['דירוג מירה'], errors='coerce').fillna(3).astype(int)
-
-        df = ensure_columns(df)
+        
+        df = ensure_columns_and_types(df)
         return df
     except gspread.exceptions.WorksheetNotFound:
         df = initialize_local_data()
@@ -138,7 +137,6 @@ def save_data_to_sheet(_spreadsheet, df):
     try:
         worksheet = _spreadsheet.worksheet("Data")
         worksheet.clear()
-        # Ensure boolean column is string before saving
         df_to_save = df.copy()
         df_to_save['טעמנו'] = df_to_save['טעמנו'].astype(str)
         worksheet.update([df_to_save.columns.values.tolist()] + df_to_save.values.tolist())
@@ -173,39 +171,25 @@ def initialize_local_data():
         'טעמנו': [False] * 14, 'דירוג אילן': [3] * 14, 'דירוג מירה': [3] * 14, 'איפה אכלנו': [""] * 14,
         'הערות': [""] * 14, 'תמונה_אישית_b64': [""] * 14
     }
-    return pd.DataFrame(data)
+    df = pd.DataFrame(data)
+    df = ensure_columns_and_types(df)
+    return df
 
-# --- ניהול מצב וסנכרון ---
+# --- ניהול מצב (Session State) ---
 if 'food_df' not in st.session_state:
     st.session_state.food_df = get_data_from_sheet(spreadsheet)
-    st.session_state.last_saved_df = st.session_state.food_df.copy()
-    st.session_state.last_activity_time = time.time()
-    st.session_state.dirty = False # האם יש שינויים שלא נשמרו
 
 # --- ממשק המשתמש הראשי ---
 st.title("🥐 הטיול הקולינרי שלנו")
 st.markdown("### צ'קליסט טעימות מסונכרן לבודפשט ולווינה")
 
-status_placeholder = st.empty()
-
-def update_status():
-    if 'food_df' in st.session_state and 'last_saved_df' in st.session_state:
-        if not st.session_state.food_df.equals(st.session_state.last_saved_df):
-            st.session_state.dirty = True
-            st.session_state.last_activity_time = time.time()
-            status_placeholder.info("✏️ מבצע שינויים...")
-        else:
-            st.session_state.dirty = False
-            status_placeholder.success("✅ כל השינויים נשמרו ומסונכרנים")
+# Create a copy of the dataframe for modification in the UI
+df_modified = st.session_state.food_df.copy()
 
 tab_budapest, tab_vienna = st.tabs(["בודפשט 🇭🇺", "וינה 🇦🇹"])
 
-def create_food_checklist(city_name):
-    if 'food_df' not in st.session_state or st.session_state.food_df.empty:
-        st.warning("טוען נתונים, אנא המתן...")
-        return
-
-    city_df = st.session_state.food_df[st.session_state.food_df['עיר'] == city_name]
+def create_food_checklist(city_name, dataframe):
+    city_df = dataframe[dataframe['עיר'] == city_name]
     
     for index, row in city_df.iterrows():
         unique_key = f"{city_name}_{index}"
@@ -233,51 +217,47 @@ def create_food_checklist(city_name):
                     img_format = img.format if img.format in ['JPEG', 'PNG'] else 'PNG'
                     img.save(buffered, format=img_format)
                     img_b64 = base64.b64encode(buffered.getvalue()).decode()
-                    st.session_state.food_df.loc[index, 'תמונה_אישית_b64'] = img_b64
-                    st.rerun()
+                    dataframe.loc[index, 'תמונה_אישית_b64'] = img_b64
 
             with col2:
                 st.subheader(row['שם המאכל'])
                 st.caption(f"המלצה: {row.get('המלצות', 'אין')}")
                 
-                st.session_state.food_df.loc[index, 'טעמנו'] = st.checkbox("טעמנו ✔", value=bool(row['טעמנו']), key=f"tasted_{unique_key}")
+                dataframe.loc[index, 'טעמנו'] = st.checkbox("טעמנו ✔", value=bool(row['טעמנו']), key=f"tasted_{unique_key}")
                 
                 slider_col, badge_col = st.columns([4, 1])
                 with slider_col:
-                    st.session_state.food_df.loc[index, 'דירוג אילן'] = st.slider("הדירוג של אילן:", 1, 5, value=int(row['דירוג אילן']), key=f"ilan_rating_{unique_key}")
+                    dataframe.loc[index, 'דירוג אילן'] = st.slider("הדירוג של אילן:", 1, 5, value=int(row['דירוג אילן']), key=f"ilan_rating_{unique_key}")
                 with badge_col:
-                    st.markdown(f'<div class="rating-badge">{st.session_state.food_df.loc[index, "דירוג אילן"]}</div>', unsafe_allow_html=True)
+                    st.markdown(f'<div class="rating-badge">{dataframe.loc[index, "דירוג אילן"]}</div>', unsafe_allow_html=True)
                 
                 slider_col2, badge_col2 = st.columns([4, 1])
                 with slider_col2:
-                    st.session_state.food_df.loc[index, 'דירוג מירה'] = st.slider("הדירוג של מירה:", 1, 5, value=int(row['דירוג מירה']), key=f"mira_rating_{unique_key}")
+                    dataframe.loc[index, 'דירוג מירה'] = st.slider("הדירוג של מירה:", 1, 5, value=int(row['דירוג מירה']), key=f"mira_rating_{unique_key}")
                 with badge_col2:
-                    st.markdown(f'<div class="rating-badge">{st.session_state.food_df.loc[index, "דירוג מירה"]}</div>', unsafe_allow_html=True)
+                    st.markdown(f'<div class="rating-badge">{dataframe.loc[index, "דירוג מירה"]}</div>', unsafe_allow_html=True)
                 
-                st.session_state.food_df.loc[index, 'איפה אכלנו'] = st.text_input("איפה אכלנו?", value=str(row['איפה אכלנו']), key=f"where_{unique_key}")
-                st.session_state.food_df.loc[index, 'הערות'] = st.text_area("הערות וטיפים", value=str(row['הערות']), key=f"notes_{unique_key}")
+                dataframe.loc[index, 'איפה אכלנו'] = st.text_input("איפה אכלנו?", value=str(row['איפה אכלנו']), key=f"where_{unique_key}")
+                dataframe.loc[index, 'הערות'] = st.text_area("הערות וטיפים", value=str(row['הערות']), key=f"notes_{unique_key}")
             
             st.markdown('</div>', unsafe_allow_html=True)
             st.markdown("---")
 
 with tab_budapest:
-    create_food_checklist('בודפשט')
+    create_food_checklist('בודפשט', df_modified)
 
 with tab_vienna:
-    create_food_checklist('וינה')
+    create_food_checklist('וינה', df_modified)
 
-# --- לוגיקת סנכרון אוטומטי ---
-update_status()
-
-if st.session_state.dirty and (time.time() - st.session_state.last_activity_time > AUTO_SAVE_DELAY_SECONDS):
-    status_placeholder.info("☁️ מסנכרן שינויים...")
-    if save_data_to_sheet(spreadsheet, st.session_state.food_df):
-        st.session_state.last_saved_df = st.session_state.food_df.copy()
-        st.session_state.dirty = False
-        get_data_from_sheet.clear() # <<--- THIS IS THE FIX
-        status_placeholder.success("✅ כל השינויים נשמרו ומסונכרנים")
-        time.sleep(2) # השהייה קצרה להצגת ההודעה
-        st.rerun()
-    else:
-        status_placeholder.error("שגיאת סנכרון. נסה שוב מאוחר יותר.")
+# --- לוגיקת סנכרון פשוטה ---
+if not st.session_state.food_df.equals(df_modified):
+    st.session_state.food_df = df_modified.copy()
+    with st.spinner("☁️ שומר שינויים..."):
+        if save_data_to_sheet(spreadsheet, st.session_state.food_df):
+            get_data_from_sheet.clear()
+            st.success("✅ השינויים נשמרו!")
+            time.sleep(1)
+            st.rerun()
+        else:
+            st.error("שגיאה בשמירה.")
 

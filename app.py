@@ -211,11 +211,11 @@ def create_food_checklist(city_name):
                 if personal_image_b64 and isinstance(personal_image_b64, str) and len(personal_image_b64) > 10:
                     try:
                         img_bytes = base64.b64decode(personal_image_b64)
-                        st.image(img_bytes, use_column_width='auto')
+                        st.image(img_bytes, width='stretch')
                     except Exception:
-                        st.image(row['תמונה_מקרא'], use_column_width='auto')
+                        st.image(row['תמונה_מקרא'], width='stretch')
                 else:
-                    st.image(row['תמונה_מקרא'], use_column_width='auto')
+                    st.image(row['תמונה_מקרא'], width='stretch')
 
                 uploaded_file = st.file_uploader("📸 העלה תמונה אישית", type=['png', 'jpg', 'jpeg'], key=f"uploader_{unique_key}")
                 if uploaded_file is not None:

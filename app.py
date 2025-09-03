@@ -118,6 +118,12 @@ def get_data_from_sheet(_spreadsheet):
         if df.empty:
             df = initialize_local_data()
             save_data_to_sheet(_spreadsheet, df)
+        else:
+            # המרה חכמה של סוגי הנתונים אחרי טעינה
+            df['טעמנו'] = df['טעמנו'].astype(str).str.strip().str.upper() == 'TRUE'
+            df['דירוג אילן'] = pd.to_numeric(df['דירוג אילן'], errors='coerce').fillna(3).astype(int)
+            df['דירוג מירה'] = pd.to_numeric(df['דירוג מירה'], errors='coerce').fillna(3).astype(int)
+
         df = ensure_columns(df)
         return df
     except gspread.exceptions.WorksheetNotFound:
@@ -132,8 +138,10 @@ def save_data_to_sheet(_spreadsheet, df):
     try:
         worksheet = _spreadsheet.worksheet("Data")
         worksheet.clear()
-        df_str = df.astype(str)
-        worksheet.update([df_str.columns.values.tolist()] + df_str.values.tolist())
+        # Ensure boolean column is string before saving
+        df_to_save = df.copy()
+        df_to_save['טעמנו'] = df_to_save['טעמנו'].astype(str)
+        worksheet.update([df_to_save.columns.values.tolist()] + df_to_save.values.tolist())
         return True
     except Exception as e:
         st.error(f"שגיאה בשמירת הנתונים: {e}")
@@ -211,11 +219,11 @@ def create_food_checklist(city_name):
                 if personal_image_b64 and isinstance(personal_image_b64, str) and len(personal_image_b64) > 10:
                     try:
                         img_bytes = base64.b64decode(personal_image_b64)
-                        st.image(img_bytes, width='stretch')
+                        st.image(img_bytes, use_container_width=True)
                     except Exception:
-                        st.image(row['תמונה_מקרא'], width='stretch')
+                        st.image(row['תמונה_מקרא'], use_container_width=True)
                 else:
-                    st.image(row['תמונה_מקרא'], width='stretch')
+                    st.image(row['תמונה_מקרא'], use_container_width=True)
 
                 uploaded_file = st.file_uploader("📸 העלה תמונה אישית", type=['png', 'jpg', 'jpeg'], key=f"uploader_{unique_key}")
                 if uploaded_file is not None:
@@ -232,8 +240,7 @@ def create_food_checklist(city_name):
                 st.subheader(row['שם המאכל'])
                 st.caption(f"המלצה: {row.get('המלצות', 'אין')}")
                 
-                current_tasted_bool = str(row['טעמנו']).strip().upper() == 'TRUE'
-                st.session_state.food_df.loc[index, 'טעמנו'] = st.checkbox("טעמנו ✔", value=current_tasted_bool, key=f"tasted_{unique_key}")
+                st.session_state.food_df.loc[index, 'טעמנו'] = st.checkbox("טעמנו ✔", value=bool(row['טעמנו']), key=f"tasted_{unique_key}")
                 
                 slider_col, badge_col = st.columns([4, 1])
                 with slider_col:

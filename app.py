@@ -5,6 +5,7 @@ from PIL import Image
 import io
 import base64
 import time
+import json # הוספנו את ספריית JSON
 
 # --- הגדרות ראשוניות של האפליקציה ---
 st.set_page_config(page_title="הטיול הקולינרי שלנו", page_icon="🥐", layout="wide")
@@ -112,6 +113,11 @@ def ensure_columns_and_types(df):
     df['טעמנו'] = df['טעמנו'].astype(str).str.strip().str.upper() == 'TRUE'
     df['דירוג אילן'] = pd.to_numeric(df['דירוג אילן'], errors='coerce').fillna(3).astype(int)
     df['דירוג מירה'] = pd.to_numeric(df['דירוג מירה'], errors='coerce').fillna(3).astype(int)
+    
+    # המרת עמודת ההמלצות מטקסט JSON לרשימה
+    if 'המלצות' in df.columns:
+        df['המלצות'] = df['המלצות'].apply(lambda x: json.loads(x) if isinstance(x, str) and x.startswith('[') else [])
+
     return df
 
 @st.cache_data(ttl=30) # Cache data for 30 seconds
@@ -138,7 +144,9 @@ def save_data_to_sheet(_spreadsheet, df):
         worksheet = _spreadsheet.worksheet("Data")
         worksheet.clear()
         df_to_save = df.copy()
+        # המרת עמודות לרשימת JSON לפני שמירה
         df_to_save['טעמנו'] = df_to_save['טעמנו'].astype(str)
+        df_to_save['המלצות'] = df_to_save['המלצות'].apply(json.dumps)
         worksheet.update([df_to_save.columns.values.tolist()] + df_to_save.values.tolist())
         return True
     except Exception as e:
@@ -164,9 +172,20 @@ def initialize_local_data():
             'https://images.pexels.com/photos/806357/pexels-photo-806357.jpeg?auto=compress&cs=tinysrgb&w=800', 'https://images.pexels.com/photos/13262933/pexels-photo-13262933.jpeg?auto=compress&cs=tinysrgb&w=800'
         ],
         'המלצות': [
-            'Gettó Gulyás, Menza', 'Retró Lángos Büfé', 'Molnár\'s Kürtőskalács', 'Gerbeaud Café', 'Paprika Jancsi',
-            'Csarnok Vendglő', 'Bank3 Palacsinta Bár', 'Figlmüller', 'Café Central', 'Hotel Sacher',
-            'Café Central', 'Plachutta Wollzeile', 'Bitzinger Würstelstand', 'Gasthaus Pöschl'
+            [{'name': 'Gettó Gulyás', 'url': 'https://maps.app.goo.gl/P8fGq4S6oWp98Zz5A'}, {'name': 'Menza', 'url': 'https://maps.app.goo.gl/uXvY6hF3t9z19k8y6'}],
+            [{'name': 'Retró Lángos Büfé', 'url': 'https://maps.app.goo.gl/3A74a7Kj5t9qN5qH8'}],
+            [{'name': "Molnár's Kürtőskalács", 'url': 'https://maps.app.goo.gl/qL8h4T6P1tB1r8J67'}],
+            [{'name': 'Gerbeaud Café', 'url': 'https://maps.app.goo.gl/s1Z6o3B6E5eX9kS28'}],
+            [{'name': 'Paprika Jancsi', 'url': 'https://maps.app.goo.gl/e7xU4K7F8D9q8q8z8'}],
+            [{'name': 'Csarnok Vendéglő', 'url': 'https://maps.app.goo.gl/X9y1M5z6N2Y9q9P47'}],
+            [{'name': 'Bank3 Palacsinta Bár', 'url': 'https://maps.app.goo.gl/v5e9V3xG3z9W5kXw6'}],
+            [{'name': 'Figlmüller', 'url': 'https://maps.app.goo.gl/FkG4R5z7w8q2X3P16'}],
+            [{'name': 'Café Central', 'url': 'https://maps.app.goo.gl/vM6h4t5y7t8X9kYw6'}],
+            [{'name': 'Hotel Sacher', 'url': 'https://maps.app.goo.gl/A9r4Y7t8z6X9kYw5'}],
+            [{'name': 'Café Central', 'url': 'https://maps.app.goo.gl/vM6h4t5y7t8X9kYw6'}],
+            [{'name': 'Plachutta Wollzeile', 'url': 'https://maps.app.goo.gl/z6h5R5z7w8q2X3P16'}],
+            [{'name': 'Bitzinger Würstelstand', 'url': 'https://maps.app.goo.gl/b9Y6R5z7w8q2X3P16'}],
+            [{'name': 'Gasthaus Pöschl', 'url': 'https://maps.app.goo.gl/n8X4R5z7w8q2X3P16'}]
         ],
         'טעמנו': [False] * 14, 'דירוג אילן': [3] * 14, 'דירוג מירה': [3] * 14, 'איפה אכלנו': [""] * 14,
         'הערות': [""] * 14, 'תמונה_אישית_b64': [""] * 14
@@ -183,7 +202,6 @@ if 'food_df' not in st.session_state:
 st.title("🥐 הטיול הקולינרי שלנו")
 st.markdown("### צ'קליסט טעימות מסונכרן לבודפשט ולווינה")
 
-# Create a copy of the dataframe for modification in the UI
 df_modified = st.session_state.food_df.copy()
 
 tab_budapest, tab_vienna = st.tabs(["בודפשט 🇭🇺", "וינה 🇦🇹"])
@@ -221,8 +239,14 @@ def create_food_checklist(city_name, dataframe):
 
             with col2:
                 st.subheader(row['שם המאכל'])
-                st.caption(f"המלצה: {row.get('המלצות', 'אין')}")
                 
+                recommendations = row.get('המלצות', [])
+                if recommendations:
+                    rec_md = "📍 **המלצות:** "
+                    links = [f"[{rec['name']}]({rec['url']})" for rec in recommendations]
+                    rec_md += ", ".join(links)
+                    st.markdown(rec_md, unsafe_allow_html=True)
+
                 dataframe.loc[index, 'טעמנו'] = st.checkbox("טעמנו ✔", value=bool(row['טעמנו']), key=f"tasted_{unique_key}")
                 
                 slider_col, badge_col = st.columns([4, 1])

@@ -77,7 +77,7 @@ def initialize_data():
     df['דירוג מירה'] = 3
     df['איפה אכלנו'] = ""
     df['הערות'] = ""
-    df['תמונה שלנו'] = ""
+    df['תמונה שלנו (URL)'] = "" # עמודה ייעודית לקישור
     df['תמונה שהועלתה'] = [None] * len(df) # עמודה לשמירת התמונות שהמשתמש מעלה
     return df
 
@@ -105,16 +105,22 @@ def create_food_checklist(city_name):
         col1, col2 = st.columns([1, 2])
         
         with col1: # עמודת התמונה
-            if row['תמונה שהועלתה']:
-                st.image(row['תמונה שהועלתה'], use_container_width=True)
-            else:
-                st.image(row['תמונה_מקרא'], use_container_width=True)
+            # לוגיקת בחירת התמונה להצגה: קישור > תמונה שהועלתה > תמונת ברירת מחדל
+            image_to_show = row['תמונה_מקרא'] # ברירת מחדל
+            if row['תמונה שהועלתה'] is not None:
+                image_to_show = row['תמונה שהועלתה']
+            if row['תמונה שלנו (URL)']:
+                image_to_show = row['תמונה שלנו (URL)']
             
-            uploaded_file = st.file_uploader("החלף תמונה", type=['png', 'jpg', 'jpeg'], key=f"uploader_{unique_key}")
+            st.image(image_to_show, use_container_width=True)
+            
+            uploaded_file = st.file_uploader("החלף תמונה מקובץ", type=['png', 'jpg', 'jpeg'], key=f"uploader_{unique_key}")
             if uploaded_file:
                 # קריאת התמונה שהועלתה ושמירתה במצב הסשן
                 st.session_state.food_df.at[index, 'תמונה שהועלתה'] = uploaded_file.getvalue()
-                st.rerun() # רענון הדף כדי להציג את התמונה החדשה
+                # אם מעלים קובץ, נקה את הקישור כדי למנוע בלבול
+                st.session_state.food_df.at[index, 'תמונה שלנו (URL)'] = ""
+                st.rerun()
 
         with col2: # עמודת המידע והאינטראקציה
             st.subheader(row['שם המאכל'])
@@ -127,7 +133,14 @@ def create_food_checklist(city_name):
             
             st.session_state.food_df.at[index, 'איפה אכלנו'] = st.text_input("איפה אכלנו?", value=row['איפה אכלנו'], key=f"where_{unique_key}")
             st.session_state.food_df.at[index, 'הערות'] = st.text_area("הערות וטיפים", value=row['הערות'], key=f"notes_{unique_key}")
-            st.session_state.food_df.at[index, 'תמונה שלנו'] = st.text_input("קישור לתמונה שלנו", value=row['תמונה שלנו'], key=f"photo_{unique_key}")
+            
+            # שדה ייעודי להדבקת קישור לתמונה
+            url_input = st.text_input("הדבק קישור לתמונה (URL)", value=row['תמונה שלנו (URL)'], key=f"photo_url_{unique_key}")
+            if url_input != row['תמונה שלנו (URL)']:
+                st.session_state.food_df.at[index, 'תמונה שלנו (URL)'] = url_input
+                # אם מדביקים קישור, נקה את התמונה שהועלתה
+                st.session_state.food_df.at[index, 'תמונה שהועלתה'] = None
+                st.rerun()
 
         st.markdown("---")
         
@@ -136,18 +149,20 @@ def create_food_checklist(city_name):
         with st.form(key=f"add_food_form_{city_name}", clear_on_submit=True):
             new_name = st.text_input("שם המאכל")
             new_recommendations = st.text_input("המלצות")
-            new_image = st.file_uploader("העלה תמונה למאכל החדש", type=['png', 'jpg', 'jpeg'])
+            new_url = st.text_input("הדבק קישור לתמונה (URL)")
+            new_image_file = st.file_uploader("או העלה תמונה למאכל החדש", type=['png', 'jpg', 'jpeg'])
             
             submitted = st.form_submit_button("הוסף לרשימה")
             if submitted and new_name:
-                image_bytes = new_image.getvalue() if new_image else None
+                image_bytes = new_image_file.getvalue() if new_image_file else None
                 
                 new_row = pd.DataFrame([{
-                    'עיר': city_name.replace('בודפשט', 'בודפשט').replace('וינה', 'וינה'), # לוודא שהשם נכון
+                    'עיר': city_name,
                     'שם המאכל': new_name,
                     'תמונה_מקרא': 'https://placehold.co/800x800/EEE/31343C?text=My+Photo', # תמונה זמנית
                     'המלצות': new_recommendations,
-                    'טעמנו': False, 'דירוג אילן': 3, 'דירוג מירה': 3, 'איפה אכלנו': "", 'הערות': "", 'תמונה שלנו': "",
+                    'טעמנו': False, 'דירוג אילן': 3, 'דירוג מירה': 3, 'איפה אכלנו': "", 'הערות': "", 
+                    'תמונה שלנו (URL)': new_url,
                     'תמונה שהועלתה': image_bytes
                 }])
                 

@@ -5,7 +5,7 @@ from PIL import Image
 import io
 import base64
 import time
-import json # הוספנו את ספריית JSON
+import json
 
 # --- הגדרות ראשוניות של האפליקציה ---
 st.set_page_config(page_title="הטיול הקולינרי שלנו", page_icon="🥐", layout="wide")
@@ -120,7 +120,7 @@ def ensure_columns_and_types(df):
 
     return df
 
-@st.cache_data(ttl=30) # Cache data for 30 seconds
+@st.cache_data(ttl=30)
 def get_data_from_sheet(_spreadsheet):
     try:
         worksheet = _spreadsheet.worksheet("Data")
@@ -134,6 +134,8 @@ def get_data_from_sheet(_spreadsheet):
     except gspread.exceptions.WorksheetNotFound:
         df = initialize_local_data()
         save_data_to_sheet(_spreadsheet, df)
+        # FIX: Ensure types are correct after initialization
+        df = ensure_columns_and_types(df)
         return df
     except Exception as e:
         st.error(f"שגיאה בטעינת הנתונים: {e}")
@@ -147,7 +149,7 @@ def save_data_to_sheet(_spreadsheet, df):
         # Ensure data types are correct for saving
         df_to_save['טעמנו'] = df_to_save['טעמנו'].astype(str)
         # Only dump if it's a list/dict, otherwise keep as is
-        df_to_save['המלצות'] = df_to_save['המלצות'].apply(lambda x: json.dumps(x) if isinstance(x, (list, dict)) else x)
+        df_to_save['המלצות'] = df_to_save['המלצות'].apply(lambda x: json.dumps(x, ensure_ascii=False) if isinstance(x, (list, dict)) else x)
         worksheet.update([df_to_save.columns.values.tolist()] + df_to_save.values.tolist())
         return True
     except Exception as e:

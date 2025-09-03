@@ -120,7 +120,7 @@ def ensure_columns_and_types(df):
 
     return df
 
-@st.cache_data(ttl=30)
+# הפונקציה הזו רצה עכשיו בלי זיכרון מטמון
 def get_data_from_sheet(_spreadsheet):
     try:
         worksheet = _spreadsheet.worksheet("Data")
@@ -134,8 +134,7 @@ def get_data_from_sheet(_spreadsheet):
     except gspread.exceptions.WorksheetNotFound:
         df = initialize_local_data()
         save_data_to_sheet(_spreadsheet, df)
-        # FIX: Ensure types are correct after initialization
-        df = ensure_columns_and_types(df)
+        df = ensure_columns_and_types(df) # ודא המרה גם כאן
         return df
     except Exception as e:
         st.error(f"שגיאה בטעינת הנתונים: {e}")
@@ -146,9 +145,8 @@ def save_data_to_sheet(_spreadsheet, df):
         worksheet = _spreadsheet.worksheet("Data")
         worksheet.clear()
         df_to_save = df.copy()
-        # Ensure data types are correct for saving
+        # המרת עמודות לפורמט טקסט לפני שמירה
         df_to_save['טעמנו'] = df_to_save['טעמנו'].astype(str)
-        # Only dump if it's a list/dict, otherwise keep as is
         df_to_save['המלצות'] = df_to_save['המלצות'].apply(lambda x: json.dumps(x, ensure_ascii=False) if isinstance(x, (list, dict)) else x)
         worksheet.update([df_to_save.columns.values.tolist()] + df_to_save.values.tolist())
         return True
@@ -157,6 +155,7 @@ def save_data_to_sheet(_spreadsheet, df):
         return False
 
 def initialize_local_data():
+    # ... (כל תוכן הפונקציה נשאר זהה) ...
     data = {
         'עיר': ['בודפשט'] * 7 + ['וינה'] * 7,
         'שם המאכל': [
@@ -197,6 +196,7 @@ def initialize_local_data():
     return df
 
 # --- ניהול מצב (Session State) ---
+# קוראים את הנתונים פעם אחת בתחילת הריצה
 if 'food_df' not in st.session_state:
     st.session_state.food_df = get_data_from_sheet(spreadsheet)
 
@@ -204,6 +204,7 @@ if 'food_df' not in st.session_state:
 st.title("🥐 הטיול הקולינרי שלנו")
 st.markdown("### צ'קליסט טעימות מסונכרן לבודפשט ולווינה")
 
+# יוצרים עותק לעבודה כדי לזהות שינויים
 df_modified = st.session_state.food_df.copy()
 
 tab_budapest, tab_vienna = st.tabs(["בודפשט 🇭🇺", "וינה 🇦🇹"])
@@ -276,12 +277,11 @@ with tab_budapest:
 with tab_vienna:
     create_food_checklist('וינה', df_modified)
 
-# --- לוגיקת סנכרון פשוטה ---
+# --- לוגיקת סנכרון פשוטה וישירה ---
 if not st.session_state.food_df.equals(df_modified):
     st.session_state.food_df = df_modified.copy()
     with st.spinner("☁️ שומר שינויים..."):
         if save_data_to_sheet(spreadsheet, st.session_state.food_df):
-            get_data_from_sheet.clear()
             st.success("✅ השינויים נשמרו!")
             time.sleep(1)
             st.rerun()

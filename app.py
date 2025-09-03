@@ -23,7 +23,6 @@ def init_firestore():
         if not firebase_admin._apps:
             creds_dict = dict(st.secrets["firebase_credentials"])
             
-            # --- התיקון ---
             # ודא שהמפתח הפרטי בפורמט הנכון על ידי החלפת תווי שורה חדשה
             creds_dict['private_key'] = creds_dict['private_key'].replace('\\n', '\n')
             
@@ -39,21 +38,19 @@ db = init_firestore()
 DOC_PATH = "checklist/budapest_vienna_trip"  # נתיב קבוע למסמך שלנו ב-Firestore
 
 # --- ניהול נתונים ---
-@st.cache_data(ttl=60) # שמירת הנתונים בזיכרון המטמון למשך 60 שניות כדי למנוע טעינות מיותרות
+@st.cache_data(ttl=60)
 def get_data_from_firestore():
     """ טוען את ה-DataFrame מ-Firestore או יוצר אותו אם הוא לא קיים """
     if db is None:
-        return initialize_local_data() # החזר נתונים מקומיים אם החיבור נכשל
+        return initialize_local_data()
 
     doc_ref = db.collection("trips").document(DOC_PATH)
     try:
         doc = doc_ref.get()
         if doc.exists:
-            # אם המסמך קיים, טען את הנתונים
             data_dict = doc.to_dict()['data']
             return pd.DataFrame.from_records(data_dict)
         else:
-            # אם המסמך לא קיים, צור את הנתונים הראשוניים ושמור אותם
             df = initialize_local_data()
             save_data_to_firestore(df)
             return df
@@ -68,7 +65,6 @@ def save_data_to_firestore(df):
         st.warning("לא ניתן לשמור שינויים - אין חיבור ל-Firebase.")
         return
     
-    # המרת ה-DataFrame לפורמט המתאים ל-Firestore
     data_dict = {'data': df.to_dict('records')}
     db.collection("trips").document(DOC_PATH).set(data_dict)
 
@@ -109,9 +105,8 @@ if 'food_df' not in st.session_state:
 st.title("🌮 הטיול הקולינרי שלנו")
 st.markdown("### צ'קליסט טעימות מסונכרן לבודפשט ולווינה")
 
-if db: # הצג את כפתור הרענון רק אם החיבור ל-Firebase הצליח
+if db:
     if st.button("רענן נתונים 🔄"):
-        # ניקוי ה-cache וטעינה מחדש מ-Firestore
         st.cache_data.clear()
         st.session_state.food_df = get_data_from_firestore()
         st.toast("הנתונים סונכרנו בהצלחה!")
@@ -119,7 +114,6 @@ if db: # הצג את כפתור הרענון רק אם החיבור ל-Firebase 
 tab_budapest, tab_vienna = st.tabs(["בודפשט 🇭🇺", "וינה 🇦🇹"])
 
 def create_food_checklist(city_name):
-    # סינון הנתונים מה-session_state, שמכיל את העותק המקומי והעדכני ביותר
     city_df = st.session_state.food_df[st.session_state.food_df['עיר'] == city_name]
     
     for index, row in city_df.iterrows():
@@ -128,16 +122,14 @@ def create_food_checklist(city_name):
         col1, col2 = st.columns([1, 2])
         
         with col1:
-            # שימוש ב-get כדי למנוע שגיאות אם העמודה לא קיימת
             image_to_show = row.get('תמונה שלנו (URL)', '') or row.get('תמונה_מקרא', '')
             if image_to_show:
-                st.image(image_to_show, use_container_width=True)
+                st.image(image_to_show, width='stretch') # תיקון הפרמטר
 
         with col2:
             st.subheader(row['שם המאכל'])
             st.caption(f"המלצה: {row.get('המלצות', 'אין')}")
             
-            # כל שינוי מעדכן את ה-DataFrame המקומי ומיד שומר ב-Firestore
             tasted = st.checkbox("טעמנו ✔", value=row['טעמנו'], key=f"tasted_{unique_key}")
             if tasted != row['טעמנו']:
                 st.session_state.food_df.loc[index, 'טעמנו'] = tasted
@@ -167,7 +159,7 @@ def create_food_checklist(city_name):
             if photo_url != row.get('תמונה שלנו (URL)', ''):
                 st.session_state.food_df.loc[index, 'תמונה שלנו (URL)'] = photo_url
                 save_data_to_firestore(st.session_state.food_df)
-                st.rerun() # רענון כדי להציג את התמונה החדשה
+                st.rerun()
 
         st.markdown("---")
 

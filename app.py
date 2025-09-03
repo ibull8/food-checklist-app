@@ -4,7 +4,7 @@ import pandas as pd
 # --- שלב 1: עדכון פרטי ה-GitHub שלך ---
 # החלף את הערכים הבאים בשם המשתמש ובשם הריפוזיטורי שלך
 GITHUB_USERNAME = "ibull8" # החלף בשם המשתמש שלך
-GITHUB_REPO_NAME = "My-Trip-App" # החלף בשם הריפוזיטורי שלך
+GITHUB_REPO_NAME = "food-checklist-app" # החלף בשם הריפוזיטורי שלך
 
 # --- הגדרות ראשוניות ---
 st.set_page_config(page_title="הטיול הקולינרי שלנו", page_icon="🌮", layout="wide")
@@ -73,3 +73,4 @@ with tab_budapest:
     create_food_checklist('בודפשט')
 with tab_vienna:
     create_food_checklist('וינה')
+

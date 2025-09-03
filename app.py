@@ -229,9 +229,12 @@ if spreadsheet:
                     st.subheader(row['שם המאכל'])
                     st.caption(f"המלצה: {row.get('המלצות', 'אין')}")
                     
-                    # שינויים נשמרים אוטומטית ל-Google Sheet
-                    tasted = st.checkbox("טעמנו ✔", value=bool(eval(str(row['טעמנו']))), key=f"tasted_{unique_key}")
-                    if tasted != bool(eval(str(row['טעמנו']))):
+                    # --- תיקון לבעיית ה-NameError ---
+                    # המרה בטוחה של 'TRUE'/'FALSE' לערך בוליאני
+                    current_tasted_bool = str(row['טעמנו']).strip().upper() == 'TRUE'
+                    tasted = st.checkbox("טעמנו ✔", value=current_tasted_bool, key=f"tasted_{unique_key}")
+                    
+                    if tasted != current_tasted_bool:
                         st.session_state.food_df.loc[original_index, 'טעמנו'] = tasted
                         save_data_to_sheet(spreadsheet, st.session_state.food_df)
 

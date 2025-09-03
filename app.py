@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import firebase_admin
 from firebase_admin import credentials, firestore
+import base64
 import json
 
 # --- הגדרות ראשוניות של האפליקציה ---
@@ -18,13 +19,16 @@ st.markdown("""
 
 # --- התחברות ל-Firebase (פעם אחת בלבד) ---
 def init_firestore():
-    """ מתחבר ל-Firestore באמצעות ה-Secrets של Streamlit """
+    """ מתחבר ל-Firestore באמצעות ה-Secrets של Streamlit ופענוח Base64 """
     try:
         if not firebase_admin._apps:
             creds_dict = dict(st.secrets["firebase_credentials"])
             
-            # ודא שהמפתח הפרטי בפורמט הנכון על ידי החלפת תווי שורה חדשה
-            creds_dict['private_key'] = creds_dict['private_key'].replace('\\n', '\n')
+            # --- התיקון עם Base64 ---
+            # פענוח המפתח הפרטי מהקידוד
+            private_key_b64 = creds_dict.pop("private_key_b64")
+            decoded_key = base64.b64decode(private_key_b64).decode("utf-8")
+            creds_dict["private_key"] = decoded_key
             
             creds = credentials.Certificate(creds_dict)
             firebase_admin.initialize_app(creds)
@@ -35,7 +39,7 @@ def init_firestore():
         return None
 
 db = init_firestore()
-DOC_PATH = "checklist/budapest_vienna_trip"  # נתיב קבוע למסמך שלנו ב-Firestore
+DOC_PATH = "checklist/budapest_vienna_trip"
 
 # --- ניהול נתונים ---
 @st.cache_data(ttl=60)
@@ -124,7 +128,7 @@ def create_food_checklist(city_name):
         with col1:
             image_to_show = row.get('תמונה שלנו (URL)', '') or row.get('תמונה_מקרא', '')
             if image_to_show:
-                st.image(image_to_show, width='stretch') # תיקון הפרמטר
+                st.image(image_to_show, width='stretch')
 
         with col2:
             st.subheader(row['שם המאכל'])

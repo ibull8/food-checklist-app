@@ -106,9 +106,9 @@ def create_food_checklist(city_name):
         
         with col1: # עמודת התמונה
             if row['תמונה שהועלתה']:
-                st.image(row['תמונה שהועלתה'], use_column_width=True)
+                st.image(row['תמונה שהועלתה'], use_container_width=True)
             else:
-                st.image(row['תמונה_מקרא'], use_column_width=True)
+                st.image(row['תמונה_מקרא'], use_container_width=True)
             
             uploaded_file = st.file_uploader("החלף תמונה", type=['png', 'jpg', 'jpeg'], key=f"uploader_{unique_key}")
             if uploaded_file:

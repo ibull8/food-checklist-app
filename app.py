@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import firebase_admin
 from firebase_admin import credentials, firestore
+import json
 
 # --- הגדרות ראשוניות של האפליקציה ---
 st.set_page_config(page_title="הטיול הקולינרי שלנו", page_icon="🌮", layout="wide")
@@ -20,9 +21,12 @@ def init_firestore():
     """ מתחבר ל-Firestore באמצעות ה-Secrets של Streamlit """
     try:
         if not firebase_admin._apps:
-            # המפתח נלקח ישירות מה-Secrets שהגדרת ב-Streamlit Cloud
-            # והומרה למילון פייתון רגיל
             creds_dict = dict(st.secrets["firebase_credentials"])
+            
+            # --- התיקון ---
+            # ודא שהמפתח הפרטי בפורמט הנכון על ידי החלפת תווי שורה חדשה
+            creds_dict['private_key'] = creds_dict['private_key'].replace('\\n', '\n')
+            
             creds = credentials.Certificate(creds_dict)
             firebase_admin.initialize_app(creds)
         return firestore.client()

@@ -144,9 +144,10 @@ def save_data_to_sheet(_spreadsheet, df):
         worksheet = _spreadsheet.worksheet("Data")
         worksheet.clear()
         df_to_save = df.copy()
-        # המרת עמודות לרשימת JSON לפני שמירה
+        # Ensure data types are correct for saving
         df_to_save['טעמנו'] = df_to_save['טעמנו'].astype(str)
-        df_to_save['המלצות'] = df_to_save['המלצות'].apply(json.dumps)
+        # Only dump if it's a list/dict, otherwise keep as is
+        df_to_save['המלצות'] = df_to_save['המלצות'].apply(lambda x: json.dumps(x) if isinstance(x, (list, dict)) else x)
         worksheet.update([df_to_save.columns.values.tolist()] + df_to_save.values.tolist())
         return True
     except Exception as e:
@@ -172,26 +173,25 @@ def initialize_local_data():
             'https://images.pexels.com/photos/806357/pexels-photo-806357.jpeg?auto=compress&cs=tinysrgb&w=800', 'https://images.pexels.com/photos/13262933/pexels-photo-13262933.jpeg?auto=compress&cs=tinysrgb&w=800'
         ],
         'המלצות': [
-            [{'name': 'Gettó Gulyás', 'url': 'https://maps.app.goo.gl/P8fGq4S6oWp98Zz5A'}, {'name': 'Menza', 'url': 'https://maps.app.goo.gl/uXvY6hF3t9z19k8y6'}],
-            [{'name': 'Retró Lángos Büfé', 'url': 'https://maps.app.goo.gl/3A74a7Kj5t9qN5qH8'}],
-            [{'name': "Molnár's Kürtőskalács", 'url': 'https://maps.app.goo.gl/qL8h4T6P1tB1r8J67'}],
-            [{'name': 'Gerbeaud Café', 'url': 'https://maps.app.goo.gl/s1Z6o3B6E5eX9kS28'}],
-            [{'name': 'Paprika Jancsi', 'url': 'https://maps.app.goo.gl/e7xU4K7F8D9q8q8z8'}],
-            [{'name': 'Csarnok Vendéglő', 'url': 'https://maps.app.goo.gl/X9y1M5z6N2Y9q9P47'}],
-            [{'name': 'Bank3 Palacsinta Bár', 'url': 'https://maps.app.goo.gl/v5e9V3xG3z9W5kXw6'}],
-            [{'name': 'Figlmüller', 'url': 'https://maps.app.goo.gl/FkG4R5z7w8q2X3P16'}],
-            [{'name': 'Café Central', 'url': 'https://maps.app.goo.gl/vM6h4t5y7t8X9kYw6'}],
-            [{'name': 'Hotel Sacher', 'url': 'https://maps.app.goo.gl/A9r4Y7t8z6X9kYw5'}],
-            [{'name': 'Café Central', 'url': 'https://maps.app.goo.gl/vM6h4t5y7t8X9kYw6'}],
-            [{'name': 'Plachutta Wollzeile', 'url': 'https://maps.app.goo.gl/z6h5R5z7w8q2X3P16'}],
-            [{'name': 'Bitzinger Würstelstand', 'url': 'https://maps.app.goo.gl/b9Y6R5z7w8q2X3P16'}],
-            [{'name': 'Gasthaus Pöschl', 'url': 'https://maps.app.goo.gl/n8X4R5z7w8q2X3P16'}]
+            json.dumps([{'name': 'Gettó Gulyás', 'url': 'https://maps.app.goo.gl/P8fGq4S6oWp98Zz5A'}, {'name': 'Menza', 'url': 'https://maps.app.goo.gl/uXvY6hF3t9z19k8y6'}]),
+            json.dumps([{'name': 'Retró Lángos Büfé', 'url': 'https://maps.app.goo.gl/3A74a7Kj5t9qN5qH8'}]),
+            json.dumps([{'name': "Molnár's Kürtőskalács", 'url': 'https://maps.app.goo.gl/qL8h4T6P1tB1r8J67'}]),
+            json.dumps([{'name': 'Gerbeaud Café', 'url': 'https://maps.app.goo.gl/s1Z6o3B6E5eX9kS28'}]),
+            json.dumps([{'name': 'Paprika Jancsi', 'url': 'https://maps.app.goo.gl/e7xU4K7F8D9q8q8z8'}]),
+            json.dumps([{'name': 'Csarnok Vendéglő', 'url': 'https://maps.app.goo.gl/X9y1M5z6N2Y9q9P47'}]),
+            json.dumps([{'name': 'Bank3 Palacsinta Bár', 'url': 'https://maps.app.goo.gl/v5e9V3xG3z9W5kXw6'}]),
+            json.dumps([{'name': 'Figlmüller', 'url': 'https://maps.app.goo.gl/FkG4R5z7w8q2X3P16'}]),
+            json.dumps([{'name': 'Café Central', 'url': 'https://maps.app.goo.gl/vM6h4t5y7t8X9kYw6'}]),
+            json.dumps([{'name': 'Hotel Sacher', 'url': 'https://maps.app.goo.gl/A9r4Y7t8z6X9kYw5'}]),
+            json.dumps([{'name': 'Café Central', 'url': 'https://maps.app.goo.gl/vM6h4t5y7t8X9kYw6'}]),
+            json.dumps([{'name': 'Plachutta Wollzeile', 'url': 'https://maps.app.goo.gl/z6h5R5z7w8q2X3P16'}]),
+            json.dumps([{'name': 'Bitzinger Würstelstand', 'url': 'https://maps.app.goo.gl/b9Y6R5z7w8q2X3P16'}]),
+            json.dumps([{'name': 'Gasthaus Pöschl', 'url': 'https://maps.app.goo.gl/n8X4R5z7w8q2X3P16'}])
         ],
         'טעמנו': [False] * 14, 'דירוג אילן': [3] * 14, 'דירוג מירה': [3] * 14, 'איפה אכלנו': [""] * 14,
         'הערות': [""] * 14, 'תמונה_אישית_b64': [""] * 14
     }
     df = pd.DataFrame(data)
-    df = ensure_columns_and_types(df)
     return df
 
 # --- ניהול מצב (Session State) ---
@@ -241,11 +241,12 @@ def create_food_checklist(city_name, dataframe):
                 st.subheader(row['שם המאכל'])
                 
                 recommendations = row.get('המלצות', [])
-                if recommendations:
+                if recommendations and isinstance(recommendations, list):
                     rec_md = "📍 **המלצות:** "
-                    links = [f"[{rec['name']}]({rec['url']})" for rec in recommendations]
-                    rec_md += ", ".join(links)
-                    st.markdown(rec_md, unsafe_allow_html=True)
+                    links = [f"[{rec['name']}]({rec['url']})" for rec in recommendations if isinstance(rec, dict)]
+                    if links:
+                        rec_md += ", ".join(links)
+                        st.markdown(rec_md, unsafe_allow_html=True)
 
                 dataframe.loc[index, 'טעמנו'] = st.checkbox("טעמנו ✔", value=bool(row['טעמנו']), key=f"tasted_{unique_key}")
                 

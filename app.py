@@ -9,6 +9,18 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
+# --- יישור לימין (RTL) ---
+# הזרקת CSS מותאם אישית ליישור כל האפליקציה לימין
+st.markdown("""
+<style>
+    html, body, [class*="st-"], .main {
+        direction: rtl;
+        text-align: right;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+
 # --- הגדרת הנתונים ---
 # יצירת DataFrame עם כל המידע על המאכלים
 def load_data():
@@ -119,3 +131,4 @@ with tab_budapest:
 with tab_vienna:
     st.header("מאכלי חובה בוינה")
     create_food_checklist(df[df['עיר'] == 'וינה'], 'vienna')
+

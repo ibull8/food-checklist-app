@@ -21,7 +21,8 @@ def init_firestore():
     try:
         if not firebase_admin._apps:
             # המפתח נלקח ישירות מה-Secrets שהגדרת ב-Streamlit Cloud
-            creds_dict = st.secrets["firebase_credentials"]
+            # והומרה למילון פייתון רגיל
+            creds_dict = dict(st.secrets["firebase_credentials"])
             creds = credentials.Certificate(creds_dict)
             firebase_admin.initialize_app(creds)
         return firestore.client()
@@ -106,6 +107,8 @@ st.markdown("### צ'קליסט טעימות מסונכרן לבודפשט ולו
 
 if db: # הצג את כפתור הרענון רק אם החיבור ל-Firebase הצליח
     if st.button("רענן נתונים 🔄"):
+        # ניקוי ה-cache וטעינה מחדש מ-Firestore
+        st.cache_data.clear()
         st.session_state.food_df = get_data_from_firestore()
         st.toast("הנתונים סונכרנו בהצלחה!")
 

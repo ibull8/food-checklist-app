@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import gspread
-import json
 from PIL import Image
 import io
 import base64
@@ -104,9 +103,7 @@ spreadsheet = get_spreadsheet(client)
 
 def ensure_columns(df):
     """ מוודא שכל העמודות הנדרשות קיימות ב-DataFrame """
-    required_cols = {
-        'תמונה_אישית_b64': ''
-    }
+    required_cols = {'תמונה_אישית_b64': ''}
     for col, default_value in required_cols.items():
         if col not in df.columns:
             df[col] = default_value
@@ -135,7 +132,6 @@ def save_data_to_sheet(_spreadsheet, df):
     try:
         worksheet = _spreadsheet.worksheet("Data")
         worksheet.clear()
-        # המרה ל-str כדי למנוע שגיאות gspread עם סוגי נתונים
         df_str = df.astype(str)
         worksheet.update([df_str.columns.values.tolist()] + df_str.values.tolist())
     except Exception as e:
@@ -161,7 +157,7 @@ def initialize_local_data():
         ],
         'המלצות': [
             'Gettó Gulyás, Menza', 'Retró Lángos Büfé', 'Molnár\'s Kürtőskalács', 'Gerbeaud Café', 'Paprika Jancsi',
-            'Csarnok Vendéglő', 'Bank3 Palacsinta Bár', 'Figlmüller', 'Café Central', 'Hotel Sacher',
+            'Csarnok Vendglő', 'Bank3 Palacsinta Bár', 'Figlmüller', 'Café Central', 'Hotel Sacher',
             'Café Central', 'Plachutta Wollzeile', 'Bitzinger Würstelstand', 'Gasthaus Pöschl'
         ],
         'טעמנו': [False] * 14, 'דירוג אילן': [3] * 14, 'דירוג מירה': [3] * 14, 'איפה אכלנו': [""] * 14,
@@ -178,10 +174,18 @@ st.title("🥐 הטיול הקולינרי שלנו")
 st.markdown("### צ'קליסט טעימות מסונכרן לבודפשט ולווינה")
 
 if spreadsheet:
-    if st.button("רענן נתונים 🔄"):
-        st.cache_data.clear()
-        st.session_state.food_df = get_data_from_sheet(spreadsheet)
-        st.toast("הנתונים סונכרנו בהצלחה מה-Google Sheet!")
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("שמור שינויים ב-Google Sheet 💾"):
+            save_data_to_sheet(spreadsheet, st.session_state.food_df)
+            st.toast("השינויים נשמרו וסונכרנו בהצלחה!")
+    with col2:
+        if st.button("רענן נתונים 🔄"):
+            st.cache_data.clear()
+            st.session_state.food_df = get_data_from_sheet(spreadsheet)
+            st.toast("הנתונים סונכרנו בהצלחה מה-Google Sheet!")
+
+    st.info("זכרו ללחוץ על 'שמור שינויים' כדי שמירה תוכל לראות את העדכונים שלכם, ועל 'רענן נתונים' כדי לראות את העדכונים שלה.")
 
     tab_budapest, tab_vienna = st.tabs(["בודפשט 🇭🇺", "וינה 🇦🇹"])
 
@@ -193,86 +197,59 @@ if spreadsheet:
         city_df = st.session_state.food_df[st.session_state.food_df['עיר'] == city_name]
         
         for index, row in city_df.iterrows():
-            original_index = st.session_state.food_df[st.session_state.food_df['שם המאכל'] == row['שם המאכל']].index[0]
-            unique_key = f"{city_name}_{original_index}"
+            unique_key = f"{city_name}_{index}"
             
             with st.container():
                 st.markdown('<div class="food-card">', unsafe_allow_html=True)
                 col1, col2 = st.columns([1, 2])
                 
                 with col1:
-                    # הצגת תמונה אישית אם קיימת, אחרת תמונת ברירת מחדל
                     personal_image_b64 = row.get('תמונה_אישית_b64', '')
                     if personal_image_b64 and isinstance(personal_image_b64, str) and len(personal_image_b64) > 10:
                         try:
                             img_bytes = base64.b64decode(personal_image_b64)
-                            st.image(img_bytes, use_container_width=True)
+                            st.image(img_bytes, use_column_width=True)
                         except Exception:
-                             st.image(row['תמונה_מקרא'], use_container_width=True)
+                             st.image(row['תמונה_מקרא'], use_column_width=True)
                     else:
-                        st.image(row['תמונה_מקרא'], use_container_width=True)
+                        st.image(row['תמונה_מקרא'], use_column_width=True)
 
                     uploaded_file = st.file_uploader("📸 העלה תמונה אישית", type=['png', 'jpg', 'jpeg'], key=f"uploader_{unique_key}")
                     if uploaded_file is not None:
-                        # --- שדרוג: כיווץ תמונה לפני שמירה ---
                         img = Image.open(uploaded_file)
-                        # קביעת גודל מקסימלי תוך שמירה על יחס רוחב-גובה
                         img.thumbnail((600, 600)) 
-                        
                         buffered = io.BytesIO()
-                        # שמירת התמונה המכווצת
                         img_format = img.format if img.format in ['JPEG', 'PNG'] else 'PNG'
                         img.save(buffered, format=img_format)
                         img_b64 = base64.b64encode(buffered.getvalue()).decode()
-                        
-                        st.session_state.food_df.loc[original_index, 'תמונה_אישית_b64'] = img_b64
-                        save_data_to_sheet(spreadsheet, st.session_state.food_df)
-                        st.toast(f"התמונה עבור {row['שם המאכל']} נשמרה!")
+                        st.session_state.food_df.loc[index, 'תמונה_אישית_b64'] = img_b64
+                        st.toast(f"התמונה עבור {row['שם המאכל']} עודכנה. לחץ על 'שמור' כדי לסנכרן.")
                         st.rerun()
 
                 with col2:
                     st.subheader(row['שם המאכל'])
                     st.caption(f"המלצה: {row.get('המלצות', 'אין')}")
                     
-                    # המרה בטוחה של 'TRUE'/'FALSE' לערך בוליאני
                     current_tasted_bool = str(row['טעמנו']).strip().upper() == 'TRUE'
-                    tasted = st.checkbox("טעמנו ✔", value=current_tasted_bool, key=f"tasted_{unique_key}")
+                    st.session_state.food_df.loc[index, 'טעמנו'] = st.checkbox("טעמנו ✔", value=current_tasted_bool, key=f"tasted_{unique_key}")
                     
-                    if tasted != current_tasted_bool:
-                        st.session_state.food_df.loc[original_index, 'טעמנו'] = tasted
-                        save_data_to_sheet(spreadsheet, st.session_state.food_df)
-
-                    # סליידר דירוג משודרג
                     slider_col, badge_col = st.columns([4, 1])
                     with slider_col:
-                        ilan_rating = st.slider("הדירוג של אילן:", 1, 5, value=int(row['דירוג אילן']), key=f"ilan_rating_{unique_key}")
+                        st.session_state.food_df.loc[index, 'דירוג אילן'] = st.slider("הדירוג של אילן:", 1, 5, value=int(row['דירוג אילן']), key=f"ilan_rating_{unique_key}")
                     with badge_col:
-                        st.markdown(f'<div class="rating-badge">{ilan_rating}</div>', unsafe_allow_html=True)
-                    if ilan_rating != int(row['דירוג אילן']):
-                        st.session_state.food_df.loc[original_index, 'דירוג אילן'] = ilan_rating
-                        save_data_to_sheet(spreadsheet, st.session_state.food_df)
+                         st.markdown(f'<div class="rating-badge">{row["דירוג אילן"]}</div>', unsafe_allow_html=True)
                     
                     slider_col2, badge_col2 = st.columns([4, 1])
                     with slider_col2:
-                         mira_rating = st.slider("הדירוג של מירה:", 1, 5, value=int(row['דירוג מירה']), key=f"mira_rating_{unique_key}")
+                         st.session_state.food_df.loc[index, 'דירוג מירה'] = st.slider("הדירוג של מירה:", 1, 5, value=int(row['דירוג מירה']), key=f"mira_rating_{unique_key}")
                     with badge_col2:
-                         st.markdown(f'<div class="rating-badge">{mira_rating}</div>', unsafe_allow_html=True)
-                    if mira_rating != int(row['דירוג מירה']):
-                        st.session_state.food_df.loc[original_index, 'דירוג מירה'] = mira_rating
-                        save_data_to_sheet(spreadsheet, st.session_state.food_df)
+                         st.markdown(f'<div class="rating-badge">{row["דירוג מירה"]}</div>', unsafe_allow_html=True)
                     
-                    where_eaten = st.text_input("איפה אכלנו?", value=str(row['איפה אכלנו']), key=f"where_{unique_key}")
-                    if where_eaten != str(row['איפה אכלנו']):
-                        st.session_state.food_df.loc[original_index, 'איפה אכלנו'] = where_eaten
-                        save_data_to_sheet(spreadsheet, st.session_state.food_df)
-
-                    notes = st.text_area("הערות וטיפים", value=str(row['הערות']), key=f"notes_{unique_key}")
-                    if notes != str(row['הערות']):
-                        st.session_state.food_df.loc[original_index, 'הערות'] = notes
-                        save_data_to_sheet(spreadsheet, st.session_state.food_df)
+                    st.session_state.food_df.loc[index, 'איפה אכלנו'] = st.text_input("איפה אכלנו?", value=str(row['איפה אכלנו']), key=f"where_{unique_key}")
+                    st.session_state.food_df.loc[index, 'הערות'] = st.text_area("הערות וטיפים", value=str(row['הערות']), key=f"notes_{unique_key}")
                 
                 st.markdown('</div>', unsafe_allow_html=True)
-                st.markdown("---") # קו מפריד בין מאכלים
+                st.markdown("---")
 
     with tab_budapest:
         create_food_checklist('בודפשט')

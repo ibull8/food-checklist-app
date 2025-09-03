@@ -274,6 +274,7 @@ if st.session_state.dirty and (time.time() - st.session_state.last_activity_time
     if save_data_to_sheet(spreadsheet, st.session_state.food_df):
         st.session_state.last_saved_df = st.session_state.food_df.copy()
         st.session_state.dirty = False
+        get_data_from_sheet.clear() # <<--- THIS IS THE FIX
         status_placeholder.success("✅ כל השינויים נשמרו ומסונכרנים")
         time.sleep(2) # השהייה קצרה להצגת ההודעה
         st.rerun()

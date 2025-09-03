@@ -118,6 +118,11 @@ if db:
 tab_budapest, tab_vienna = st.tabs(["בודפשט 🇭🇺", "וינה 🇦🇹"])
 
 def create_food_checklist(city_name):
+    # ודא שהנתונים קיימים ב-session_state
+    if 'food_df' not in st.session_state:
+        st.warning("טוען נתונים, אנא המתן...")
+        return
+
     city_df = st.session_state.food_df[st.session_state.food_df['עיר'] == city_name]
     
     for index, row in city_df.iterrows():
